@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Check out your code from version control (e.g., Git)
+                git 'https://github.com/callmeambro/testone.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                // Build Docker image with NGINX server serving your HTML content
+                script {
+                    dockerImage = docker.build('my-nginx-container') {
+                        def htmlDirectory = pwd()
+                        def nginxConfig = '''
+                            events {}
+                            http {
+                                server {
+                                    listen 80;
+                                    server_name localhost;
+
+                                    location / {
+                                        root /usr/share/nginx/html;
+                                        index index.html;
+                                    }
+                                }
+                            }
+                        '''
+                        inside ('/') {
+                            sh "echo '${nginxConfig}' > nginx.conf"
+                        }
+                        inside ('/usr/share/nginx/html/') {
+                            sh "cp ${htmlDirectory}/index.html index.html"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                // Run the Docker container from the created image
+                script {
+                    dockerImage.inside('-p 8080:80') {
+                        sh 'nginx -c /nginx.conf -g "daemon off;"'
+                    }
+                }
+            }
+        }
+    }
+}
